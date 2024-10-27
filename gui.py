@@ -1,5 +1,3 @@
-# gui.py
-
 import flet as ft
 from gpt import GptClient
 import asyncio
@@ -126,47 +124,19 @@ async def main(page: ft.Page):
             # Обработка нажатия кнопки "Отправить"
             await on_submit_button(e)
     def create_message_container(content, alignment, bgcolor):
-        # Создаем контейнер для всего содержимого
         message_widgets = []
         
-        # Проверяем, содержит ли сообщение таблицу
-        if "| " in content and " |" in content:
-            # Разбиваем контент на строки
-            lines = content.split('\n')
-            table_data = []
-            in_table = False
-            
-            for line in lines:
-                if line.strip().startswith('|') and line.strip().endswith('|'):
-                    if not in_table:
-                        in_table = True
-                        table_data = []
-                    # Обрабатываем строку таблицы
-                    cells = [cell.strip() for cell in line.strip('|').split('|')]
-                    table_data.append(cells)
-                elif in_table:
-                    # Создаем DataTable
-                    if table_data:
-                        data_table = ft.DataTable(
-                            columns=[
-                                ft.DataColumn(ft.Text(header))
-                                for header in table_data[0]
-                            ],
-                            rows=[
-                                ft.DataRow(
-                                    cells=[ft.DataCell(ft.Text(cell)) for cell in row]
-                                )
-                                for row in table_data[1:] if not all(c.startswith('-') for c in row)
-                            ],
-                        )
-                        message_widgets.append(data_table)
-                    in_table = False
-                else:
-                    # Добавляем обычный текст как Markdown
-                    if line.strip():
+        # Разбиваем контент на части, сохраняя блоки кода
+        parts = content.split('```')
+        
+        for i, part in enumerate(parts):
+            if i % 2 == 0:  # Обычный текст
+                if "| " in part and " |" in part:
+                    # Пока просто обрабатываем как обычный текст
+                    if part.strip():
                         message_widgets.append(
                             ft.Markdown(
-                                line,
+                                part,
                                 selectable=True,
                                 extension_set="github",
                                 code_style=ft.TextStyle(
@@ -175,19 +145,55 @@ async def main(page: ft.Page):
                                 ),
                             )
                         )
-        else:
-            # Если таблиц нет, используем обычный Markdown
-            message_widgets.append(
-                ft.Markdown(
-                    content,
-                    selectable=True,
-                    extension_set="github",
-                    code_style=ft.TextStyle(
-                        font_family="monospace",
-                        size=14,
-                    ),
+                else:
+                    if part.strip():
+                        message_widgets.append(
+                            ft.Markdown(
+                                part,
+                                selectable=True,
+                                extension_set="github",
+                                code_style=ft.TextStyle(
+                                    font_family="monospace",
+                                    size=14,
+                                ),
+                            )
+                        )
+            else:  # Блок кода
+                # Извлекаем язык программирования и код
+                code_lines = part.strip().split('\n')
+                language = code_lines[0] if code_lines[0] else "text"
+                code = '\n'.join(code_lines[1:]) if len(code_lines) > 1 else ""
+                
+                # Создаем контейнер для кода с кнопкой копирования
+                code_container = ft.Container(
+                    content=ft.Column([
+                        ft.Row([
+                            ft.Text(f"[{language}]", size=12, color="grey"),
+                            ft.IconButton(
+                                icon=ft.icons.COPY,
+                                tooltip="Копировать код",
+                                on_click=lambda _, c=code: page.set_clipboard(c)
+                            )
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        ft.Container(
+                            content=ft.Text(
+                                code,
+                                selectable=True,
+                                style=ft.TextStyle(
+                                    font_family="monospace",
+                                    size=14,
+                                ),
+                            ),
+                            bgcolor=ft.colors.BLACK12,
+                            padding=10,
+                            border_radius=5,
+                        )
+                    ]),
+                    bgcolor=ft.colors.BLACK12,
+                    padding=10,
+                    border_radius=10,
                 )
-            )
+                message_widgets.append(code_container)
 
         return ft.Container(
             content=ft.Column(
